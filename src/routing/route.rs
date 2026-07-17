@@ -3,6 +3,7 @@ use crate::routing::split_segments;
 use crate::routing::tokenizer::{Constraint, SegmentTokenizer, Token};
 use hyper::Method;
 use regex::Regex;
+use std::cell::RefCell;
 use std::sync::LazyLock;
 
 static DEFAULT_VAR_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(.*){1,}").unwrap());
@@ -75,8 +76,10 @@ impl Route {
         panic!("Parameter not found");
     }
 
-    pub fn matches(&self, path: &str) -> bool {
-        SegmentReconciliator::new(split_segments(path.to_owned()), self).cmp()
+    pub fn is_match(&self, path: &str) -> (bool, RefCell<Vec<Reconciled>>) {
+        let mut reconciliator = SegmentReconciliator::new(split_segments(path.to_owned()), self);
+
+        (reconciliator.cmp(), reconciliator.reconciled)
     }
 }
 
@@ -107,6 +110,7 @@ struct SegmentReconciliator<'a> {
     req_segs: Vec<String>,
     rou_segs: &'a Vec<RouteSegment>,
     depth: usize,
+    reconciled: RefCell<Vec<Reconciled>>,
 }
 
 impl<'a> SegmentReconciliator<'a> {
@@ -117,6 +121,7 @@ impl<'a> SegmentReconciliator<'a> {
             req_segs,
             rou_segs: &route.segments,
             depth: 0,
+            reconciled: RefCell::new(vec![]),
         }
     }
 
@@ -146,11 +151,11 @@ impl<'a> SegmentReconciliator<'a> {
             return false;
         }
 
-        let (reconciled, wildcard) = self.reconcile_segs(req_seg.unwrap(), &rou_seg.unwrap());
+        let (is_reconciled, wildcard) = self.reconcile_segs(req_seg.unwrap(), &rou_seg.unwrap());
 
         if wildcard {
             return true;
-        } else if reconciled {
+        } else if is_reconciled {
             self.depth += 1;
             return self.cmp();
         }
@@ -162,6 +167,7 @@ impl<'a> SegmentReconciliator<'a> {
         let mut cursor = 0;
         let mut i = 0;
         let tok_len = rou_seg.tokens.len();
+        let mut reconciled = self.reconciled.borrow_mut();
 
         // If any of these checks fail, break out of loop and return false.
         for token in &rou_seg.tokens {
@@ -172,6 +178,7 @@ impl<'a> SegmentReconciliator<'a> {
                     let slices_match = req_seg.len() >= end && &req_seg[start..end] == token.slice;
                     if slices_match {
                         cursor += token.slice.len();
+                        reconciled.push(Reconciled::Static(req_seg[start..end].to_owned()));
                         true
                     } else {
                         false
@@ -180,6 +187,10 @@ impl<'a> SegmentReconciliator<'a> {
                 Constraint::Default => {
                     if let Some(found) = DEFAULT_VAR_PATTERN.find_at(req_seg, cursor) {
                         cursor = found.range().end;
+                        reconciled.push(Reconciled::new_var(
+                            token.slice.clone(),
+                            found.as_str().to_owned(),
+                        ));
                         // todo copy from Constraint::Regex arm?
                         // Maybe not required, since it'll be assumed default
                         // catches everything until the end of the segment.
@@ -196,6 +207,10 @@ impl<'a> SegmentReconciliator<'a> {
                                 // After the loop ends the cursor being at
                                 // end means everything properly matched.
                                 cursor = found.as_str().len();
+                                reconciled.push(Reconciled::new_var(
+                                    token.slice.clone(),
+                                    found.as_str().to_owned(),
+                                ));
                                 true
                             } else {
                                 false
@@ -221,6 +236,10 @@ impl<'a> SegmentReconciliator<'a> {
                                 // We will assume for now it's true. We will know by end of
                                 // this segment's reconciliation if it's a match or not.
                                 cursor = found.range().end;
+                                reconciled.push(Reconciled::new_var(
+                                    token.slice.clone(),
+                                    found.as_str().to_owned(),
+                                ));
                                 true
                             }
                         } else {
@@ -234,6 +253,10 @@ impl<'a> SegmentReconciliator<'a> {
 
                             if is_match {
                                 cursor = req_seg.len();
+                                reconciled.push(Reconciled::new_var(
+                                    token.slice.clone(),
+                                    found.as_str().to_owned(),
+                                ));
                                 true
                             } else {
                                 false
@@ -256,6 +279,9 @@ impl<'a> SegmentReconciliator<'a> {
                     if cursor == token.range.start {
                         // Wildcard token starts at correct position in
                         // req_seg, return true for entire route
+                        reconciled.push(Reconciled::Wildcard(
+                            req_seg[token.range.start..].to_owned(),
+                        ));
                         return (true, true);
                     }
                     false
@@ -274,6 +300,22 @@ impl<'a> SegmentReconciliator<'a> {
     }
 }
 
+#[derive(Debug)]
+pub enum Reconciled {
+    Static(String),
+    Variable { handle: String, value: String },
+    Wildcard(String),
+}
+
+impl Reconciled {
+    fn new_var(handle: String, value: String) -> Reconciled {
+        Reconciled::Variable {
+            handle: handle.replace("{", "").replace("}", ""),
+            value,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::action::{Action, Responsable};
@@ -284,6 +326,7 @@ mod tests {
     use hyper::body::Incoming;
     use hyper::{Method, Request};
     use std::sync::LazyLock;
+    use crate::http::request::HttpRequest;
 
     static ROUTER: LazyLock<Router> = LazyLock::new(|| Router::new(register_routes));
 
@@ -293,7 +336,7 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/", resolved.unwrap().path);
+        assert_eq!("/", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -304,7 +347,7 @@ mod tests {
             assert!(false, "Route not resolved.");
         }
 
-        assert_eq!("/about", resolved.unwrap().path);
+        assert_eq!("/about", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -317,7 +360,7 @@ mod tests {
             assert!(false, "Route not resolved.");
         }
 
-        assert_eq!("/home/trending", resolved.unwrap().path);
+        assert_eq!("/home/trending", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -328,7 +371,7 @@ mod tests {
             assert!(false, "Route not resolved.");
         }
 
-        assert_eq!("/home/popular", resolved.unwrap().path);
+        assert_eq!("/home/popular", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -341,7 +384,7 @@ mod tests {
             assert!(false, "Route not resolved.");
         }
 
-        assert_eq!("/home/settings/profile", resolved.unwrap().path);
+        assert_eq!("/home/settings/profile", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -354,7 +397,7 @@ mod tests {
             assert!(false, "Route not resolved.");
         }
 
-        assert_eq!("/home/settings/preferences", resolved.unwrap().path);
+        assert_eq!("/home/settings/preferences", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -363,8 +406,9 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_ne!("/user/{user}", resolved.unwrap().path);
-        assert_eq!("/user/index", resolved.unwrap().path);
+        let route = resolved.unwrap().0;
+        assert_ne!("/user/{user}", route.path);
+        assert_eq!("/user/index", route.path);
     }
 
     #[test]
@@ -373,8 +417,9 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_ne!("/user/index", resolved.unwrap().path);
-        assert_eq!("/user/{user}", resolved.unwrap().path);
+        let route = resolved.unwrap().0;
+        assert_ne!("/user/index", route.path);
+        assert_eq!("/user/{user}", route.path);
     }
 
     #[test]
@@ -385,7 +430,7 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/user/{user}/details", resolved.unwrap().path);
+        assert_eq!("/user/{user}/details", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -396,7 +441,7 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/user/{user}/edit", resolved.unwrap().path);
+        assert_eq!("/user/{user}/edit", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -407,7 +452,7 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/user/{user}/posts/featured", resolved.unwrap().path);
+        assert_eq!("/user/{user}/posts/featured", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -418,8 +463,12 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_ne!("/author/{id}", resolved.unwrap().path);
-        assert_eq!("/author/{name}", resolved.unwrap().path);
+        let route = resolved.unwrap().0;
+        assert_ne!("/author/{id}", route.path);
+        assert_eq!("/author/{name}", route.path);
+        // todo test in route action,
+        // let retrieved = request.get("{name}").unwrap()
+        // assert_eq!("johndoe", retrieved)
     }
 
     #[test]
@@ -428,8 +477,12 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_ne!("/author/{user}", resolved.unwrap().path);
-        assert_eq!("/author/{id}", resolved.unwrap().path);
+        let route = resolved.unwrap().0;
+        assert_ne!("/author/{user}", route.path);
+        assert_eq!("/author/{id}", route.path);
+        // todo test in route action,
+        // let retrieved = request.get("{id}").unwrap()
+        // assert_eq!("123", retrieved)
     }
 
     #[test]
@@ -444,7 +497,7 @@ mod tests {
             assert!(
                 false,
                 "A route was resolved when none should have., \"{}\"",
-                route.path
+                route.0.path
             );
         }
     }
@@ -466,7 +519,7 @@ mod tests {
             assert!(
                 false,
                 "A route was resolved when none should have., \"{}\"",
-                route.path
+                route.0.path
             );
         }
     }
@@ -481,7 +534,7 @@ mod tests {
         }
         assert_eq!(
             "/post/{author}.{post_id}.{post_title}",
-            resolved.unwrap().path
+            resolved.unwrap().0.path
         );
     }
 
@@ -493,7 +546,7 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/home/app-{trailing_var}", resolved.unwrap().path);
+        assert_eq!("/home/app-{trailing_var}", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -504,7 +557,7 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/home/app2-{trailing_var}", resolved.unwrap().path);
+        assert_eq!("/home/app2-{trailing_var}", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -515,7 +568,7 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/home/{leading_var}-page", resolved.unwrap().path);
+        assert_eq!("/home/{leading_var}-page", resolved.unwrap().0.path);
     }
 
     #[test]
@@ -526,8 +579,14 @@ mod tests {
         if let None = resolved {
             assert!(false, "Route not resolved.");
         }
-        assert_eq!("/app/{slug}", resolved.unwrap().path);
+        assert_eq!("/app/{slug}", resolved.unwrap().0.path);
     }
+
+    // #[test]
+    // fn expect_405_when_method_not_allowed() {
+    //     // Test when attempting to GET on POST only route
+    //     todo!()
+    // }
 
     fn register_routes(router: &mut Router) {
         // Some of these routes are here to check that they are NOT
@@ -596,7 +655,7 @@ mod tests {
         async fn handle(
             &self,
             _app: &App,
-            _request: Request<Incoming>,
+            _request: HttpRequest,
         ) -> Result<Box<dyn Responsable>, HttpError> {
             Ok(Box::new("hello".to_string()))
         }

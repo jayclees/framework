@@ -1,4 +1,5 @@
 use crate::error::HttpError;
+use crate::http::request::HttpRequest;
 use crate::routing::router::Router;
 use futures::FutureExt;
 use http_body_util::Full;
@@ -78,13 +79,20 @@ impl App {
 
         match result {
             Ok(route) => match route {
-                Some(route) => match route.action().handle(&self, request).await {
-                    Ok(result) => {
-                        route.action().log().await;
-                        Some(result.to_response())
+                Some((route, reconciled)) => {
+                    match route
+                        .action()
+                        .handle(&self, HttpRequest::new(request, reconciled.take()))
+                        .await
+                    {
+                        Ok(result) => {
+                            // todo this is the spot to implement the bus pattern
+                            route.action().log().await;
+                            Some(result.to_response())
+                        }
+                        Err(e) => Some(Err(e)),
                     }
-                    Err(e) => Some(Err(e)),
-                },
+                }
                 None => Some(Err(HttpError::new(404, "Page not found".to_string()))),
             },
             Err(error) => {

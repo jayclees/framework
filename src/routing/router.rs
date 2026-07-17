@@ -1,8 +1,9 @@
 use crate::action::Action;
 use crate::error::HttpError;
-use crate::routing::route::Route;
+use crate::routing::route::{Reconciled, Route};
 use hyper::body::Incoming;
 use hyper::{Method, Request};
+use std::cell::RefCell;
 
 #[derive(Debug)]
 pub struct Router {
@@ -141,18 +142,32 @@ impl Router {
         self
     }
 
-    pub fn resolve(&self, request: &Request<Incoming>) -> Result<Option<&Route>, HttpError> {
+    pub fn resolve(
+        &self,
+        request: &Request<Incoming>,
+    ) -> Result<Option<(&Route, RefCell<Vec<Reconciled>>)>, HttpError> {
         self.resolve_inner(request.uri().path(), request.method())
     }
 
     /// This lets us test without requiring a Request<Incoming> instance
-    pub fn resolve_inner(&self, path: &str, method: &Method) -> Result<Option<&Route>, HttpError> {
+    pub fn resolve_inner(
+        &self,
+        path: &str,
+        method: &Method,
+    ) -> Result<Option<(&Route, RefCell<Vec<Reconciled>>)>, HttpError> {
+        // todo need to get all routes that match, then we need to check to see if
+        // todo request method matches any of them. e.g. PUT request must have a
+        // todo route with a PUT.
+
+        // todo first filter by requested method. if none found, see if there is another route
+        // todo with the same path. if match found, we know to return a 405 method not allowed error.
         for route in &self.routes {
-            if route.matches(path) {
+            let (is_match, reconciled) = route.is_match(path);
+            if is_match {
                 return if method != route.get_method() {
                     Err(HttpError::new(405, "Method not allowed".to_string()))
                 } else {
-                    Ok(Some(route))
+                    Ok(Some((route, reconciled)))
                 };
             }
         }
