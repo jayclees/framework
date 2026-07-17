@@ -10,8 +10,9 @@ use hyper::service::service_fn;
 use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
 use hyper_util::server::conn::auto;
-use minijinja_autoreload::{AutoReloader, EnvironmentGuard};
+use minijinja_autoreload::AutoReloader;
 use sea_orm::DatabaseConnection;
+use serde::Serialize;
 use serde_json::json;
 use std::error::Error;
 use std::fmt::Debug;
@@ -65,13 +66,19 @@ impl App {
         &self.listener
     }
 
-    pub fn template(&self) -> EnvironmentGuard {
-        // todo figure out how to unlock autoreloader mutex if a template fails to load
-        // maybe open pull request
+    pub fn template<T: Serialize>(
+        &self,
+        name: &str,
+        context: T,
+    ) -> Result<String, minijinja::Error> {
         self.template
             .acquire_env()
             .expect("Failed to resolve minijinja environment")
+            .get_template(name)?
+            .render(context)
     }
+
+    pub fn create_autoloader() {}
 
     pub fn db(&self) -> Option<&DatabaseConnection> {
         self.db.as_ref()
@@ -117,14 +124,9 @@ impl App {
                 "code": error.code(),
                 "message": error.message(),
             })
-                .to_string()
+            .to_string()
         } else {
-            self.template()
-                .get_template("errors/default.html")
-                .unwrap()
-                // todo WARNING: be careful what we send to client here.
-                .render(error)
-                .unwrap()
+            self.template("errors/default.html", error).unwrap()
         };
 
         Ok(builder.body(Full::new(Bytes::from(content))).unwrap())
