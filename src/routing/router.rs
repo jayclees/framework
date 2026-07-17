@@ -1,5 +1,5 @@
 use crate::action::Action;
-use crate::error::HttpError;
+use crate::http::error::HttpError;
 use crate::routing::route::{Reconciled, Route};
 use hyper::body::Incoming;
 use hyper::{Method, Request};
@@ -54,16 +54,16 @@ impl Router {
         self
     }
 
-    pub fn getn<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::GET, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn getn<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: String,
+    // ) -> &mut Router {
+    //     self.add(Method::GET, path, action, Some(|route| route.name(name)));
+    //
+    //     self
+    // }
 
     pub fn post<A: Action + 'static>(
         &mut self,
@@ -87,16 +87,16 @@ impl Router {
         self
     }
 
-    pub fn postn<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::POST, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn postn<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::POST, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn patch<A: Action + 'static>(
         &mut self,
@@ -120,16 +120,16 @@ impl Router {
         self
     }
 
-    pub fn patchn<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::PATCH, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn patchn<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::PATCH, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn put<A: Action + 'static>(
         &mut self,
@@ -153,16 +153,16 @@ impl Router {
         self
     }
 
-    pub fn putn<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::PUT, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn putn<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::PUT, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn delete<A: Action + 'static>(
         &mut self,
@@ -186,16 +186,16 @@ impl Router {
         self
     }
 
-    pub fn deleten<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::DELETE, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn deleten<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::DELETE, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn head<A: Action + 'static>(
         &mut self,
@@ -219,16 +219,16 @@ impl Router {
         self
     }
 
-    pub fn headn<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::HEAD, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn headn<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::HEAD, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn connect<A: Action + 'static>(
         &mut self,
@@ -252,16 +252,16 @@ impl Router {
         self
     }
 
-    pub fn connectn<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::CONNECT, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn connectn<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::CONNECT, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn options<A: Action + 'static>(
         &mut self,
@@ -285,16 +285,16 @@ impl Router {
         self
     }
 
-    pub fn optionsn<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::OPTIONS, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn optionsn<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::OPTIONS, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn trace<A: Action + 'static>(
         &mut self,
@@ -318,16 +318,16 @@ impl Router {
         self
     }
 
-    pub fn tracen<A: Action + 'static>(
-        &mut self,
-        path: &str,
-        action: A,
-        name: String,
-    ) -> &mut Router {
-        self.add(Method::TRACE, path, action, Some(|route| route.name(name)));
-
-        self
-    }
+    // pub fn tracen<A: Action + 'static>(
+    //     &mut self,
+    //     path: &str,
+    //     action: A,
+    //     name: &str,
+    // ) -> &mut Router {
+    //     self.add(Method::TRACE, path, action, |route| route.name(name));
+    //
+    //     self
+    // }
 
     pub fn resolve(
         &self,

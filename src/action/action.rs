@@ -1,6 +1,6 @@
 use crate::action::Responsable;
 use crate::app::App;
-use crate::error::HttpError;
+use crate::http::error::HttpError;
 use crate::http::request::HttpRequest;
 use async_trait::async_trait;
 use std::fmt::Debug;

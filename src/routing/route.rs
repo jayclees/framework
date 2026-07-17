@@ -320,13 +320,12 @@ impl Reconciled {
 mod tests {
     use crate::action::{Action, Responsable};
     use crate::app::App;
-    use crate::error::HttpError;
+    use crate::http::error::HttpError;
+    use crate::http::request::HttpRequest;
     use crate::routing::router::Router;
     use async_trait::async_trait;
-    use hyper::body::Incoming;
-    use hyper::{Method, Request};
+    use hyper::Method;
     use std::sync::LazyLock;
-    use crate::http::request::HttpRequest;
 
     static ROUTER: LazyLock<Router> = LazyLock::new(|| Router::new(register_routes));
 

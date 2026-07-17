@@ -1,4 +1,4 @@
-use crate::error::HttpError;
+use crate::http::error::HttpError;
 use http_body_util::Full;
 use hyper::body::Bytes;
 use hyper::Response;

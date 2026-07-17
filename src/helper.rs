@@ -1,9 +1,7 @@
 #[macro_export]
 macro_rules! dd {
     ( $( $x:expr ),* ) => {
-        $(
-            dbg!($x);
-        )*
+        dbg!($($x)*);
         std::process::exit(1);
     };
 }
@@ -18,3 +16,17 @@ macro_rules! get_line {
 }
 
 pub use get_line;
+
+#[macro_export]
+macro_rules! log {
+    ( $( $x:expr ),* ) => {
+        let t1 = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        let t2 = framework::support::logger::Logger::new(t1);
+        $(
+            t2.log($x);
+        )*
+        // let t1 = std::path::PathBuf::new(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    };
+}
+
+pub use log;

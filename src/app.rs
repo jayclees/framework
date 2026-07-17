@@ -1,6 +1,7 @@
-use crate::error::HttpError;
+use crate::http::error::HttpError;
 use crate::http::request::HttpRequest;
 use crate::routing::router::Router;
+use crate::support::logger::Logger;
 use futures::FutureExt;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
@@ -36,6 +37,7 @@ pub struct App {
     template: AutoReloader,
     db: Option<DatabaseConnection>,
     env: Env,
+    logger: Logger,
 }
 
 impl App {
@@ -44,6 +46,7 @@ impl App {
         addr: SocketAddr,
         template: AutoReloader,
         db: DatabaseConnection,
+        logger: Logger,
     ) -> App {
         App {
             router: Arc::new(router),
@@ -54,6 +57,7 @@ impl App {
                 env: "production".to_string(),
                 debug: true,
             },
+            logger,
         }
     }
 
@@ -114,7 +118,7 @@ impl App {
                 "code": error.code(),
                 "message": error.message(),
             })
-            .to_string()
+                .to_string()
         } else {
             self.template
                 .acquire_env()
