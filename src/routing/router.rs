@@ -54,6 +54,17 @@ impl Router {
         self
     }
 
+    pub fn getn<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::GET, path, action, Some(|route| route.name(name)));
+
+        self
+    }
+
     pub fn post<A: Action + 'static>(
         &mut self,
         path: &str,
@@ -61,6 +72,28 @@ impl Router {
         modifier: Option<fn(Route) -> Route>,
     ) -> &mut Router {
         self.add(Method::POST, path, action, modifier);
+
+        self
+    }
+
+    pub fn postm<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::POST, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn postn<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::POST, path, action, Some(|route| route.name(name)));
 
         self
     }
@@ -76,6 +109,28 @@ impl Router {
         self
     }
 
+    pub fn patchm<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::PATCH, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn patchn<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::PATCH, path, action, Some(|route| route.name(name)));
+
+        self
+    }
+
     pub fn put<A: Action + 'static>(
         &mut self,
         path: &str,
@@ -83,6 +138,28 @@ impl Router {
         modifier: Option<fn(Route) -> Route>,
     ) -> &mut Router {
         self.add(Method::PUT, path, action, modifier);
+
+        self
+    }
+
+    pub fn putm<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::PUT, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn putn<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::PUT, path, action, Some(|route| route.name(name)));
 
         self
     }
@@ -98,6 +175,28 @@ impl Router {
         self
     }
 
+    pub fn deletem<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::DELETE, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn deleten<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::DELETE, path, action, Some(|route| route.name(name)));
+
+        self
+    }
+
     pub fn head<A: Action + 'static>(
         &mut self,
         path: &str,
@@ -105,6 +204,28 @@ impl Router {
         modifier: Option<fn(Route) -> Route>,
     ) -> &mut Router {
         self.add(Method::HEAD, path, action, modifier);
+
+        self
+    }
+
+    pub fn headm<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::HEAD, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn headn<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::HEAD, path, action, Some(|route| route.name(name)));
 
         self
     }
@@ -120,6 +241,28 @@ impl Router {
         self
     }
 
+    pub fn connectm<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::CONNECT, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn connectn<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::CONNECT, path, action, Some(|route| route.name(name)));
+
+        self
+    }
+
     pub fn options<A: Action + 'static>(
         &mut self,
         path: &str,
@@ -131,6 +274,28 @@ impl Router {
         self
     }
 
+    pub fn optionsm<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::OPTIONS, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn optionsn<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::OPTIONS, path, action, Some(|route| route.name(name)));
+
+        self
+    }
+
     pub fn trace<A: Action + 'static>(
         &mut self,
         path: &str,
@@ -138,6 +303,28 @@ impl Router {
         modifier: Option<fn(Route) -> Route>,
     ) -> &mut Router {
         self.add(Method::TRACE, path, action, modifier);
+
+        self
+    }
+
+    pub fn tracem<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        modifier: fn(Route) -> Route,
+    ) -> &mut Router {
+        self.add(Method::TRACE, path, action, Some(modifier));
+
+        self
+    }
+
+    pub fn tracen<A: Action + 'static>(
+        &mut self,
+        path: &str,
+        action: A,
+        name: String,
+    ) -> &mut Router {
+        self.add(Method::TRACE, path, action, Some(|route| route.name(name)));
 
         self
     }
