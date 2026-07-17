@@ -25,7 +25,7 @@ impl HttpRequest {
         }
     }
 
-    pub fn route(&self, handle: String) -> Option<&String> {
-        self.variables.get(&handle)
+    pub fn var(&self, handle: &str) -> Option<&String> {
+        self.variables.get(handle)
     }
 }

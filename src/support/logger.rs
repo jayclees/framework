@@ -1,4 +1,3 @@
-use crate::get_line;
 use chrono::{DateTime, Utc};
 use regex::Regex;
 use std::fmt::Display;
@@ -20,22 +19,29 @@ impl Logger {
     pub fn log<T: Display>(&self, content: T) {
         let file = self.resolve_file();
 
-        self.write(file, content);
+        self.write(file, content, None);
     }
 
-    fn write<T: Display>(&self, mut file: File, content: T) {
+    pub fn log_line<T: Display>(&self, content: T, calling_line: &str) {
+        let file = self.resolve_file();
+
+        self.write(file, content, Some(calling_line));
+    }
+
+    fn write<T: Display>(&self, mut file: File, content: T, calling_line: Option<&str>) {
         match file.lock() {
             Ok(_) => {
-                file.write_all(
-                    format!(
-                        "[{}] {}: {}\n",
-                        Utc::now().format("%Y-%m-%d %H:%M:%S"),
-                        get_line!(),
-                        content
-                    )
-                        .as_bytes(),
-                )
-                    .unwrap();
+                let string = format!(
+                    "[{}]{} {}\n",
+                    Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                    if let Some(calling_line) = calling_line {
+                        format!(" {calling_line}:")
+                    } else {
+                        ":".to_owned()
+                    },
+                    content
+                );
+                file.write_all(string.as_bytes()).unwrap();
             }
             Err(error) => {
                 eprintln!("Failed to log panic.");

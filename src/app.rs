@@ -66,6 +66,8 @@ impl App {
     }
 
     pub fn template(&self) -> EnvironmentGuard {
+        // todo figure out how to unlock autoreloader mutex if a template fails to load
+        // maybe open pull request
         self.template
             .acquire_env()
             .expect("Failed to resolve minijinja environment")
@@ -109,9 +111,6 @@ impl App {
     fn error(&self, error: &HttpError, json: bool) -> Result<Response<Full<Bytes>>, HttpError> {
         let mut builder = Response::builder().status(error.code());
 
-        // todo check if error templates available, if so, return the error template
-        // todo check if app is local/debug is enabled, send stack trace to browser if so
-
         let content = if json {
             builder = builder.header("Content-Type", "application/json");
             json!({
@@ -120,9 +119,7 @@ impl App {
             })
                 .to_string()
         } else {
-            self.template
-                .acquire_env()
-                .unwrap()
+            self.template()
                 .get_template("errors/default.html")
                 .unwrap()
                 // todo WARNING: be careful what we send to client here.
