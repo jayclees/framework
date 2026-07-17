@@ -10,6 +10,7 @@ use hyper::service::service_fn;
 use hyper::{Request, Response};
 use hyper_util::rt::TokioIo;
 use hyper_util::server::conn::auto;
+use minijinja::context;
 use minijinja_autoreload::AutoReloader;
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
@@ -30,6 +31,9 @@ pub struct Env {
 impl Env {
     // todo implement getters/setters
     // todo load .env file
+    pub fn new(env: String, debug: bool) -> Env {
+        Env { env, debug }
+    }
 }
 
 pub struct App {
@@ -48,16 +52,14 @@ impl App {
         template: AutoReloader,
         db: DatabaseConnection,
         logger: Logger,
+        env: Env,
     ) -> App {
         App {
             router: Arc::new(router),
             listener: TcpListener::bind(addr).await.unwrap(),
             template,
             db: Some(db),
-            env: Env {
-                env: "production".to_string(),
-                debug: true,
-            },
+            env,
             logger,
         }
     }
@@ -115,21 +117,80 @@ impl App {
         }
     }
 
+    pub fn is_production(&self) -> bool {
+        self.env.env == "production"
+    }
+
+    pub fn is_local(&self) -> bool {
+        self.env.env == "local"
+    }
+
     fn error(&self, error: &HttpError, json: bool) -> Result<Response<Full<Bytes>>, HttpError> {
         let mut builder = Response::builder().status(error.code());
-
+        let msg = if self.is_local() {
+            error.message()
+        } else {
+            self.error_message(error.code())
+        };
         let content = if json {
             builder = builder.header("Content-Type", "application/json");
-            json!({
-                "code": error.code(),
-                "message": error.message(),
-            })
-            .to_string()
+            json!({"code": error.code(), "message": msg}).to_string()
         } else {
-            self.template("errors/default.html", error).unwrap()
+            self.template(
+                "errors/default.html",
+                context!(code => error.code(), message => msg),
+            )
+            .unwrap()
         };
 
         Ok(builder.body(Full::new(Bytes::from(content))).unwrap())
+    }
+
+    fn error_message(&self, code: u16) -> String {
+        let string = format!("Unknown error ({}).", code);
+        match code {
+            400 => "Bad request",
+            401 => "Forbidden",
+            402 => "Payment required",
+            403 => "Unauthorized",
+            404 => "Not found",
+            405 => "Method not allowed",
+            409 => "Conflict",
+            410 => "Gone",
+            411 => "Length required",
+            412 => "Precondition failed",
+            413 => "Content too large",
+            414 => "URI too long",
+            415 => "Unsupported media type",
+            416 => "Range not satisfiable",
+            417 => "Expectation failed",
+            418 => "I'm a teapot",
+            421 => "Misdirected request",
+            422 => "Unprocessable content",
+            423 => "Locked",
+            424 => "Failed dependency",
+            425 => "Too early",
+            426 => "Upgrade required",
+            428 => "Precondition required",
+            429 => "Too many requests",
+            431 => "Request header fields too large",
+            451 => "Unavailable for legal reasons",
+            400..=499 => "Client error",
+            500 => "Server error",
+            501 => "Not implemented",
+            502 => "Bad gateway",
+            503 => "Service unavailable",
+            504 => "Gateway timeout",
+            505 => "HTTP version not supported",
+            506 => "Variant also negotiates",
+            507 => "Insufficient storage",
+            508 => "Loop detected",
+            510 => "Not extended",
+            511 => "Network authentication required",
+            500..=599 => "Something went wrong",
+            _ => string.as_str(),
+        }
+        .to_owned()
     }
 }
 
@@ -181,50 +242,42 @@ async fn handle_request(
     request: Request<Incoming>,
 ) -> Result<Response<Full<Bytes>>, HttpError> {
     let wants_json = if let Some(accepts) = request.headers().get("Accept") {
-        Some(accepts == "application/json")
+        accepts == "application/json"
     } else {
-        None
+        false
     };
 
     // Catch panics within app.dispatch()
     match AssertUnwindSafe(app.dispatch(request)).catch_unwind().await {
-        Ok(option) => {
-            match option {
-                Some(result) => {
-                    if let Err(err) = &result {
-                        if wants_json.unwrap_or(false) {
-                            return app.error(err, true);
-                        }
-
-                        return app.error(err, false);
-                    }
-
-                    result
+        Ok(option) => match option {
+            Some(result) => {
+                if let Err(err) = &result {
+                    return app.error(err, wants_json);
                 }
-                None => {
-                    // if response wants JSON or is api route, return JSON
-                    // else, check config for error templates, return that
-                    if wants_json.unwrap_or(false) {
-                        return app
-                            .error(&HttpError::new(404, "Endpoint not found.".to_owned()), true);
-                    }
 
-                    app.error(&HttpError::new(404, "Page not found.".to_owned()), false)
-                }
+                result
             }
-        }
+            None => app.error(
+                &HttpError::new(
+                    404,
+                    if wants_json {
+                        "Endpoint not found."
+                    } else {
+                        "Page not found."
+                    }
+                    .to_owned(),
+                ),
+                wants_json,
+            ),
+        },
         Err(error) => {
             // Server error. Send details if app is local and debug is enabled
-            let msg = if app.env.env == "local" && app.env.debug {
-                if let Some(msg) = error.downcast_ref::<&str>() {
-                    *msg
-                } else if let Some(msg) = error.downcast_ref::<String>() {
-                    msg
-                } else {
-                    "Unknown panic."
-                }
+            let msg = if let Some(msg) = error.downcast_ref::<&str>() {
+                *msg
+            } else if let Some(msg) = error.downcast_ref::<String>() {
+                msg
             } else {
-                "Something went wrong."
+                "Unknown panic."
             };
 
             app.error(&HttpError::new(500, msg.to_string()), false)
