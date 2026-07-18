@@ -17,10 +17,9 @@ use serde::Serialize;
 use serde_json::json;
 use std::error::Error;
 use std::fmt::Debug;
-use std::net::SocketAddr;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, ToSocketAddrs};
 
 #[derive(Debug)]
 pub struct Env {
@@ -46,9 +45,9 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(
+    pub async fn new<A: ToSocketAddrs>(
         router: Router,
-        addr: SocketAddr,
+        addr: A,
         template: AutoReloader,
         db: DatabaseConnection,
         logger: Logger,
