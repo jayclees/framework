@@ -31,6 +31,16 @@ impl Registry {
             ),
         );
         args.insert(
+            "--vite-url",
+            OptionDefinition::new(
+                "--vite-url",
+                Some("-v"),
+                "The url that the vite dev server will be running on. Default: 127.0.0.1:5173",
+                Some("127.0.0.1:5173"),
+                false,
+            ),
+        );
+        args.insert(
             "--help",
             OptionDefinition::new("--help", Some("-h"), "List run options.", None, true),
         );
@@ -44,9 +54,12 @@ impl Registry {
         let mut parsed: HashMap<String, Value> = HashMap::new();
 
         for arg in args {
-            let regex = Regex::new("^--?[a-zA-Z][a-zA-Z0-9]+(?:=.{1,}+)?$").unwrap();
+            let regex = Regex::new("^--?[a-zA-Z][a-zA-Z0-9-]+(?:=.{1,}+)?$").unwrap();
             if !regex.is_match(arg.as_str()) {
-                return Err(InvalidOption::new(arg.clone(), format!(r#"Invalid option "{arg}"."#)));
+                return Err(InvalidOption::new(
+                    arg.clone(),
+                    format!(r#"Invalid option "{arg}"."#),
+                ));
             }
 
             let split = arg.split("=").collect::<Vec<&str>>();
@@ -138,18 +151,31 @@ impl Parsed {
     }
 
     pub fn host(&self) -> String {
-        if let Value::String(host) = self.inner.get("host").unwrap() {
+        let option = self.inner.get("host");
+
+        if option.is_some() && let Value::String(host) = option.unwrap() {
             host.clone()
         } else {
             "127.0.0.1".to_string()
         }
     }
-
     pub fn port(&self) -> String {
-        if let Value::String(port) = self.inner.get("port").unwrap() {
+        let option = self.inner.get("port");
+
+        if option.is_some() && let Value::String(port) = option.unwrap() {
             port.clone()
         } else {
             "3000".to_string()
+        }
+    }
+
+    pub fn vite_url(&self) -> String {
+        let option = self.inner.get("vite-url");
+
+        if option.is_some() && let Value::String(vite_url) = option.unwrap() {
+            vite_url.clone()
+        } else {
+            "127.0.0.1:5173".to_string()
         }
     }
 }
@@ -284,7 +310,10 @@ mod tests {
                 assert!(false, "Should have failed but didn't.\nResult: {}", parsed)
             }
             Err(error) => {
-                assert_eq!("Option --help is a flag and cannot accept a value.", error.msg());
+                assert_eq!(
+                    "Option --help is a flag and cannot accept a value.",
+                    error.msg()
+                );
             }
         };
     }

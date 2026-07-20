@@ -25,13 +25,18 @@ use tokio::net::{TcpListener, ToSocketAddrs};
 pub struct Env {
     env: String,
     debug: bool,
+    vite_url: Option<String>,
 }
 
 impl Env {
     // todo implement getters/setters
     // todo load .env file
-    pub fn new(env: String, debug: bool) -> Env {
-        Env { env, debug }
+    pub fn new(env: String, debug: bool, vite_url: Option<String>) -> Env {
+        Env {
+            env,
+            debug,
+            vite_url,
+        }
     }
 }
 
@@ -71,15 +76,18 @@ impl App {
         &self,
         name: &str,
         context: T,
-    ) -> Result<String, minijinja::Error> {
+    ) -> Result<String, minijinja::Error>
+    where minijinja::Value: From<T> {
+        let value = context! {
+            vite_url => self.env.vite_url,
+            ..context
+        };
         self.template
             .acquire_env()
             .expect("Failed to resolve minijinja environment")
             .get_template(name)?
-            .render(context)
+            .render(value)
     }
-
-    pub fn create_autoloader() {}
 
     pub fn db(&self) -> Option<&DatabaseConnection> {
         self.db.as_ref()
@@ -90,7 +98,7 @@ impl App {
         request: Request<Incoming>,
     ) -> Option<Result<Response<Full<Bytes>>, HttpError>> {
         let result = &self.router.resolve(&request);
-
+        dbg!(result);
         match result {
             Ok(route) => match route {
                 Some((route, reconciled)) => {
