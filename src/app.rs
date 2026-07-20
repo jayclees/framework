@@ -72,12 +72,10 @@ impl App {
         &self.listener
     }
 
-    pub fn template<T: Serialize>(
-        &self,
-        name: &str,
-        context: T,
-    ) -> Result<String, minijinja::Error>
-    where minijinja::Value: From<T> {
+    pub fn template<T: Serialize>(&self, name: &str, context: T) -> Result<String, minijinja::Error>
+    where
+        minijinja::Value: From<T>,
+    {
         let value = context! {
             vite_url => self.env.vite_url,
             ..context
@@ -98,7 +96,6 @@ impl App {
         request: Request<Incoming>,
     ) -> Option<Result<Response<Full<Bytes>>, HttpError>> {
         let result = &self.router.resolve(&request);
-        dbg!(result);
         match result {
             Ok(route) => match route {
                 Some((route, reconciled)) => {
