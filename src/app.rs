@@ -76,6 +76,10 @@ impl App {
         &self.listener
     }
 
+    pub fn state<A: Any>(&self) -> &A {
+        &self.state.downcast_ref::<A>().unwrap()
+    }
+
     pub fn template<S: Serialize>(&self, name: &str, context: S) -> Result<String, minijinja::Error>
     where
         minijinja::Value: From<S>,
