@@ -15,6 +15,7 @@ use minijinja_autoreload::AutoReloader;
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use serde_json::json;
+use std::any::Any;
 use std::error::Error;
 use std::fmt::Debug;
 use std::panic::AssertUnwindSafe;
@@ -23,14 +24,12 @@ use tokio::net::{TcpListener, ToSocketAddrs};
 
 #[derive(Debug)]
 pub struct Env {
-    env: String,
-    debug: bool,
-    vite_url: Option<String>,
+    pub env: String,
+    pub debug: bool,
+    pub vite_url: Option<String>,
 }
 
 impl Env {
-    // todo implement getters/setters
-    // todo load .env file
     pub fn new(env: String, debug: bool, vite_url: Option<String>) -> Env {
         Env {
             env,
@@ -40,6 +39,8 @@ impl Env {
     }
 }
 
+type AppState = Box<dyn Any + Send + Sync>;
+
 pub struct App {
     router: Arc<Router>,
     listener: TcpListener,
@@ -47,6 +48,7 @@ pub struct App {
     db: Option<DatabaseConnection>,
     env: Env,
     logger: Logger,
+    pub state: AppState,
 }
 
 impl App {
@@ -57,6 +59,7 @@ impl App {
         db: DatabaseConnection,
         logger: Logger,
         env: Env,
+        state: AppState,
     ) -> App {
         App {
             router: Arc::new(router),
@@ -65,6 +68,7 @@ impl App {
             db: Some(db),
             env,
             logger,
+            state,
         }
     }
 
@@ -72,9 +76,9 @@ impl App {
         &self.listener
     }
 
-    pub fn template<T: Serialize>(&self, name: &str, context: T) -> Result<String, minijinja::Error>
+    pub fn template<S: Serialize>(&self, name: &str, context: S) -> Result<String, minijinja::Error>
     where
-        minijinja::Value: From<T>,
+        minijinja::Value: From<S>,
     {
         let value = context! {
             vite_url => self.env.vite_url,
@@ -99,13 +103,13 @@ impl App {
         match result {
             Ok(route) => match route {
                 Some((route, reconciled)) => {
+                    // todo this is the spot to implement the bus pattern
                     match route
                         .action()
                         .handle(&self, HttpRequest::new(request, reconciled.take()))
                         .await
                     {
                         Ok(result) => {
-                            // todo this is the spot to implement the bus pattern
                             route.action().log().await;
                             Some(result.to_response())
                         }
@@ -275,7 +279,7 @@ async fn handle_request(
             ),
         },
         Err(error) => {
-            // Server error. Send details if app is local and debug is enabled
+            // Caught panic. Send details if app is local and debug is enabled
             let msg = if let Some(msg) = error.downcast_ref::<&str>() {
                 *msg
             } else if let Some(msg) = error.downcast_ref::<String>() {
