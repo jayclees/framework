@@ -15,6 +15,12 @@ impl Responsable for String {
     }
 }
 
+impl Responsable for &str {
+    fn to_response(&self) -> Result<Response<Full<Bytes>>, HttpError> {
+        Ok(Response::new(Full::new(Bytes::from(self.clone().to_owned()))))
+    }
+}
+
 impl Responsable for Vec<usize> {
     fn to_response(&self) -> Result<Response<Full<Bytes>>, HttpError> {
         let json = serde_json::to_string(&self).unwrap();
