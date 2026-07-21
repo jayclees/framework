@@ -25,6 +25,10 @@ impl HttpRequest {
         }
     }
 
+    pub fn inner(&self) -> &Request<Incoming> {
+        &self.inner
+    }
+
     pub fn var(&self, handle: &str) -> Option<&String> {
         self.variables.get(handle)
     }
