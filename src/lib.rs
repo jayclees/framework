@@ -6,3 +6,4 @@ pub mod helper;
 pub mod http;
 pub mod routing;
 pub mod support;
+mod vite;

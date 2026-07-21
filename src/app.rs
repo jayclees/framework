@@ -2,6 +2,7 @@ use crate::http::error::HttpError;
 use crate::http::request::HttpRequest;
 use crate::routing::router::Router;
 use crate::support::logger::Logger;
+use crate::vite::ViteManifestChunk;
 use futures::FutureExt;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
@@ -16,13 +17,16 @@ use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use serde_json::json;
 use std::any::Any;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Debug;
+use std::fs::OpenOptions;
+use std::io::Read;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::net::{TcpListener, ToSocketAddrs};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Env {
     pub env: String,
     pub debug: bool,
@@ -84,7 +88,21 @@ impl App {
     where
         minijinja::Value: From<S>,
     {
+        let mut file = OpenOptions::new()
+            .read(true)
+            .open("public/dist/.vite/manifest.json")
+            .unwrap();
+        let mut string = String::new();
+        file.read_to_string(&mut string).unwrap();
+        // todo Cache this. Probably in AppState with last loaded at. Then just
+        // todo check if the file was modified after, and reload if so. Maybe
+        // todo refactor into ViteManifestChunk method or vite.rs helper fn.
+        let vite_manifest: HashMap<String, ViteManifestChunk> =
+            serde_json::from_str(string.as_ref()).unwrap();
+
         let value = context! {
+            env => self.env,
+            vite_manifest,
             vite_url => self.env.vite_url,
             ..context
         };
