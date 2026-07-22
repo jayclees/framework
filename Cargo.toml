@@ -1,7 +1,12 @@
 [package]
-name = "framework"
+name = "sturdy"
 version = "0.1.0"
 edition = "2024"
+license-file = "LICENSE"
+description = "Rust Web Framework"
+homepage = "https://sturdyframework.com"
+repository = "https://github.com/jayclees/framework"
+readme = "README.md"
 
 [dependencies]
 futures = "0.3.32"
