@@ -1,7 +1,13 @@
+use minijinja::{path_loader, Environment, Error, ErrorKind};
+use minijinja_autoreload::AutoReloader;
+use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
-use minijinja::{path_loader, Environment};
-use minijinja_autoreload::AutoReloader;
+use tokio::fs::OpenOptions;
+use vite::ViteManifestChunk;
+use tokio::io::AsyncReadExt;
+
+pub mod vite;
 
 pub fn reloader(root: PathBuf) -> AutoReloader {
     // If DISABLE_AUTORELOAD is set, then the path tracking is disabled.
@@ -28,4 +34,31 @@ pub fn reloader(root: PathBuf) -> AutoReloader {
 
         Ok(env)
     })
+}
+
+async fn vite(path: String) -> Result<String, Error> {
+    // todo:
+    // Cache vite manifest. Probably in AppState with last loaded at. Then
+    // check if the file was modified after, and reload if so. Maybe
+    // refactor into ViteManifestChunk method or vite.rs helper fn.
+
+    // if local, return http://vite_url:vite_port/path
+
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open("public/dist/.vite/manifest.json")
+        .await
+        .unwrap();
+    let mut string = String::new();
+    file.read_to_string(&mut string).await.unwrap();
+    let vite_manifest: HashMap<String, ViteManifestChunk> =
+        serde_json::from_str(string.as_ref()).unwrap();
+    let manifest_chunk = vite_manifest.get(path.as_str());
+
+    match manifest_chunk {
+        Some(chunk) => tokio::fs::read_to_string(format!("public/dist/{}", chunk.file))
+            .await
+            .map_err(|e| Error::new(ErrorKind::InvalidOperation, "Vite: Failed to load asset.")),
+        None => Err(Error::new(ErrorKind::InvalidOperation, "Vite: Failed to load asset.")),
+    }
 }

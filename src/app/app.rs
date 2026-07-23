@@ -1,76 +1,48 @@
+use crate::env::{AppEnv, Env};
 use crate::http::error::HttpError;
 use crate::http::request::HttpRequest;
 use crate::routing::router::Router;
 use crate::support::logger::Logger;
-use crate::vite::ViteManifestChunk;
-use futures::FutureExt;
 use http_body_util::Full;
 use hyper::body::{Bytes, Incoming};
-use hyper::rt::Executor;
-use hyper::service::service_fn;
 use hyper::{Request, Response};
-use hyper_util::rt::TokioIo;
-use hyper_util::server::conn::auto;
 use minijinja::context;
 use minijinja_autoreload::AutoReloader;
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use serde_json::json;
 use std::any::Any;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt::Debug;
-use std::fs::OpenOptions;
-use std::io::Read;
-use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use tokio::net::{TcpListener, ToSocketAddrs};
+use tokio::net::TcpListener;
 
-#[derive(Debug, Serialize)]
-pub struct Env {
-    pub env: String,
-    pub debug: bool,
-    pub vite_url: Option<String>,
-}
-
-impl Env {
-    pub fn new(env: String, debug: bool, vite_url: Option<String>) -> Env {
-        Env {
-            env,
-            debug,
-            vite_url,
-        }
-    }
-}
-
-type AppState = Box<dyn Any + Send + Sync>;
+pub(crate) type AppState = Box<dyn Any + Send + Sync>;
 
 pub struct App {
+    env: Env,
     router: Arc<Router>,
     listener: TcpListener,
-    template: AutoReloader,
+    template: Option<AutoReloader>,
     db: Option<DatabaseConnection>,
-    env: Env,
     logger: Logger,
-    pub state: AppState,
+    state: AppState,
 }
 
 impl App {
-    pub async fn new<A: ToSocketAddrs>(
-        router: Router,
-        addr: A,
-        template: AutoReloader,
-        db: DatabaseConnection,
-        logger: Logger,
+    pub fn init(
         env: Env,
+        router: Arc<Router>,
+        listener: TcpListener,
+        template: Option<AutoReloader>,
+        db: Option<DatabaseConnection>,
+        logger: Logger,
         state: AppState,
     ) -> App {
         App {
-            router: Arc::new(router),
-            listener: TcpListener::bind(addr).await.unwrap(),
-            template,
-            db: Some(db),
             env,
+            router,
+            listener,
+            template,
+            db,
             logger,
             state,
         }
@@ -88,25 +60,13 @@ impl App {
     where
         minijinja::Value: From<S>,
     {
-        let mut file = OpenOptions::new()
-            .read(true)
-            .open("public/dist/.vite/manifest.json")
-            .unwrap();
-        let mut string = String::new();
-        file.read_to_string(&mut string).unwrap();
-        // todo Cache this. Probably in AppState with last loaded at. Then just
-        // todo check if the file was modified after, and reload if so. Maybe
-        // todo refactor into ViteManifestChunk method or vite.rs helper fn.
-        let vite_manifest: HashMap<String, ViteManifestChunk> =
-            serde_json::from_str(string.as_ref()).unwrap();
-
         let value = context! {
             env => self.env,
-            vite_manifest,
-            vite_url => self.env.vite_url,
             ..context
         };
         self.template
+            .as_ref()
+            .expect("Template reloader not set.")
             .acquire_env()
             .expect("Failed to resolve minijinja environment")
             .get_template(name)?
@@ -148,14 +108,14 @@ impl App {
     }
 
     pub fn is_production(&self) -> bool {
-        self.env.env == "production"
+        self.env.env() == &AppEnv::Production
     }
 
     pub fn is_local(&self) -> bool {
-        self.env.env == "local"
+        self.env.env() == &AppEnv::Local
     }
 
-    fn error(&self, error: &HttpError, json: bool) -> Result<Response<Full<Bytes>>, HttpError> {
+    pub(crate) fn error(&self, error: &HttpError, json: bool) -> Result<Response<Full<Bytes>>, HttpError> {
         let mut builder = Response::builder().status(error.code());
         let msg = if self.is_local() {
             error.message()
@@ -221,96 +181,5 @@ impl App {
             _ => string.as_str(),
         }
         .to_owned()
-    }
-}
-
-/// Future executor that utilises `tokio` threads.
-#[non_exhaustive]
-#[derive(Default, Debug, Clone)]
-pub struct TokioExecutor;
-
-impl TokioExecutor {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl<Fut> Executor<Fut> for TokioExecutor
-where
-    Fut: Future + Send + 'static,
-    Fut::Output: Send + 'static,
-{
-    fn execute(&self, fut: Fut) {
-        tokio::spawn(fut);
-    }
-}
-
-pub async fn run(app: Arc<App>) -> Result<(), Box<dyn Error + Send + Sync>> {
-    loop {
-        let (stream, _) = app.listener().accept().await?;
-        let io = TokioIo::new(stream);
-        let app = Arc::clone(&app);
-
-        tokio::task::spawn(async move {
-            if let Err(err) = auto::Builder::new(TokioExecutor::new())
-                .serve_connection(
-                    io,
-                    service_fn(move |request: Request<Incoming>| {
-                        handle_request(Arc::clone(&app), request)
-                    }),
-                )
-                .await
-            {
-                eprintln!("Error serving connection: {:?}", err);
-            }
-        });
-    }
-}
-
-async fn handle_request(
-    app: Arc<App>,
-    request: Request<Incoming>,
-) -> Result<Response<Full<Bytes>>, HttpError> {
-    let wants_json = if let Some(accepts) = request.headers().get("Accept") {
-        accepts == "application/json"
-    } else {
-        false
-    };
-
-    // Catch panics within app.dispatch()
-    match AssertUnwindSafe(app.dispatch(request)).catch_unwind().await {
-        Ok(option) => match option {
-            Some(result) => {
-                if let Err(err) = &result {
-                    return app.error(err, wants_json);
-                }
-
-                result
-            }
-            None => app.error(
-                &HttpError::new(
-                    404,
-                    if wants_json {
-                        "Endpoint not found."
-                    } else {
-                        "Page not found."
-                    }
-                    .to_owned(),
-                ),
-                wants_json,
-            ),
-        },
-        Err(error) => {
-            // Caught panic. Send details if app is local and debug is enabled
-            let msg = if let Some(msg) = error.downcast_ref::<&str>() {
-                *msg
-            } else if let Some(msg) = error.downcast_ref::<String>() {
-                msg
-            } else {
-                "Unknown panic."
-            };
-
-            app.error(&HttpError::new(500, msg.to_string()), false)
-        }
     }
 }

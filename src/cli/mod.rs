@@ -259,7 +259,7 @@ impl std::fmt::Display for InvalidOption {
 
 impl std::error::Error for InvalidOption {}
 
-pub fn process_args() -> (String, String, String) {
+pub fn resolve_addr() -> (String, String) {
     let registry = Registry::default();
     let parsed = registry.parse(env::args().skip(1).collect());
 
@@ -272,7 +272,7 @@ pub fn process_args() -> (String, String, String) {
                 std::process::exit(0);
             }
 
-            (parsed.host(), parsed.port(), parsed.vite_url())
+            (parsed.host(), parsed.port())
         }
         Err(error) => {
             registry.eprint_help(error.msg().clone());
