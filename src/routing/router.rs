@@ -11,7 +11,7 @@ pub struct Router {
 }
 
 impl Router {
-    pub fn new<F: FnOnce(&mut Router)>(register_routes: F) -> Router {
+    pub fn new<F: Fn(&mut Router)>(register_routes: F) -> Router {
         let mut router = Router { routes: Vec::new() };
 
         register_routes(&mut router);
