@@ -19,7 +19,6 @@ pub fn reloader(root: PathBuf) -> AutoReloader {
     // The closure is invoked every time the environment is outdated to recreate it.
     AutoReloader::new(move |notifier| {
         let template_path = root.join("resource/template");
-        dbg!(&template_path);
         let mut env = Environment::new();
         env.set_loader(path_loader(&template_path));
 

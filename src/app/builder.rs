@@ -35,26 +35,31 @@ impl<A: 'static + ToSocketAddrs> Builder<A> {
         }
     }
 
+    /// Set router
     pub fn router(&mut self, router: Router) -> &mut Builder<A> {
         self.router = Some(router);
         self
     }
 
+    /// Set address to bind to
     pub fn listen(&mut self, addr: A) -> &mut Builder<A> {
         self.listen_addr = Some(addr);
         self
     }
 
+    /// Enable templates
     pub fn template(&mut self) -> &mut Builder<A> {
         self.template = Some(reloader(self.root.clone()));
         self
     }
 
+    /// Enable database
     pub fn db(&mut self) -> &mut Builder<A> {
         self.db = Some(true);
         self
     }
 
+    /// Set app state
     pub fn state<S: Any + Send + Sync>(&mut self, state: Box<S>) -> &mut Builder<A> {
         self.state = Some(state);
         self
@@ -75,7 +80,7 @@ impl<A: 'static + ToSocketAddrs> Builder<A> {
             self.template.take(),
             db,
             Logger::new(self.root.clone()),
-            self.state.take().unwrap(),
+            self.state.take(),
         )
     }
 }

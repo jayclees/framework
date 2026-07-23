@@ -24,7 +24,7 @@ pub struct App {
     template: Option<AutoReloader>,
     db: Option<DatabaseConnection>,
     logger: Logger,
-    state: AppState,
+    state: Option<AppState>,
 }
 
 impl App {
@@ -35,7 +35,7 @@ impl App {
         template: Option<AutoReloader>,
         db: Option<DatabaseConnection>,
         logger: Logger,
-        state: AppState,
+        state: Option<AppState>,
     ) -> App {
         App {
             env,
@@ -53,7 +53,12 @@ impl App {
     }
 
     pub fn state<A: Any>(&self) -> &A {
-        &self.state.downcast_ref::<A>().unwrap()
+        &self
+            .state
+            .as_ref()
+            .expect("App state not set.")
+            .downcast_ref::<A>()
+            .unwrap()
     }
 
     pub fn template<S: Serialize>(&self, name: &str, context: S) -> Result<String, minijinja::Error>
@@ -115,7 +120,11 @@ impl App {
         self.env.env() == &AppEnv::Local
     }
 
-    pub(crate) fn error(&self, error: &HttpError, json: bool) -> Result<Response<Full<Bytes>>, HttpError> {
+    pub(crate) fn error(
+        &self,
+        error: &HttpError,
+        json: bool,
+    ) -> Result<Response<Full<Bytes>>, HttpError> {
         let mut builder = Response::builder().status(error.code());
         let msg = if self.is_local() {
             error.message()
