@@ -1,6 +1,7 @@
 pub mod action;
 pub mod app;
 pub mod cli;
+pub mod database;
 pub mod error;
 pub mod helper;
 pub mod http;

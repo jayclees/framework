@@ -1,5 +1,6 @@
 use regex::Regex;
 use std::collections::HashMap;
+use std::env;
 use std::fmt::Formatter;
 use std::rc::Rc;
 
@@ -257,6 +258,29 @@ impl std::fmt::Display for InvalidOption {
 }
 
 impl std::error::Error for InvalidOption {}
+
+pub fn process_args() -> (String, String, String) {
+    let registry = Registry::default();
+    let parsed = registry.parse(env::args().skip(1).collect());
+
+    match parsed {
+        Ok(parsed) => {
+            if parsed.help_requested() {
+                registry.print_help();
+                drop(parsed);
+                drop(registry);
+                std::process::exit(0);
+            }
+
+            (parsed.host(), parsed.port(), parsed.vite_url())
+        }
+        Err(error) => {
+            registry.eprint_help(error.msg().clone());
+            panic!("Failed...");
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

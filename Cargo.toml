@@ -23,3 +23,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 minijinja-autoreload = "2.21.0"
 minijinja = "2.21.0"
 serde_qs = "1.1.2"
+log = "0.4.33"
